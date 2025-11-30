@@ -1,7 +1,7 @@
 Confusion Matrix Report
-Generated: 2025-11-30 12:08:53.714645
+Generated: 2025-11-30 20:53:04.788434
 --------------------------------------------------
 
 Predicted →	0	1
-Actual 0	762	213
-Actual 1	213	690
+Actual 0	755	220
+Actual 1	230	673

@@ -6,6 +6,7 @@ import datetime
 from datetime import datetime
 from typing import Tuple
 import optuna
+import dagshub
 from pathlib import Path
 from xgboost import XGBClassifier
 from configs.manager import ConfigManager
@@ -298,6 +299,8 @@ class Trainer:
         return None
 
     def run(self, target: str = 'sarcasm'):
+
+        dagshub.init(repo_owner='matanst7', repo_name='SarcClassifierE2E', mlflow=True)
 
         validate_path(self.config.artifacts_dir)
 

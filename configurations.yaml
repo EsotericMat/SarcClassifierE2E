@@ -24,7 +24,7 @@ model-training:
   train_files_path: processed_data
   validation: True
   keep_punctuation_features: True
-  num_trials: 3 #15
+  num_trials: 10 #15
   models_path: models
   artifacts_dir: artifacts
   confusion_matrix_artifact_file: artifacts/ConfMatrix.txt

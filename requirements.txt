@@ -13,3 +13,4 @@ xgboost
 mlflow
 pandera
 sentence-transformers
+dagshub

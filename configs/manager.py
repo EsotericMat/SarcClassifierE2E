@@ -2,12 +2,16 @@ from dataclasses import make_dataclass, field
 from sarcasm_classifier.utils.tools import read_yaml
 from pathlib import Path
 
-config_path = Path('configurations.yaml')
-
 class ConfigManager:
     def __init__(self, pipe):
         self.pipe = pipe
-        self.config_dict = read_yaml(config_path)
+        try:
+            config_path = Path('configurations.yaml')
+            self.config_dict = read_yaml(config_path)
+        except:
+            config_path = Path('../configurations.yaml')
+            self.config_dict = read_yaml(config_path)
+            print('running from module')
         self.params = self.config_dict[self.pipe]
         self.name = self.params['step_name']
         self.config = self.make_config_class()

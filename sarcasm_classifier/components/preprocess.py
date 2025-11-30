@@ -114,8 +114,11 @@ class Preprocess:
         dataframe.drop('embedding', axis=1, inplace=True)
         return dataframe
 
-    def run_single_text(self, text):
-        assert isinstance(text, str), 'Not a string'
+    def run_single_text(self, text, add_punct: bool = True):
+
+        if not isinstance(text, str):
+            raise ValueError("Input must be a string")
+
         signal = []
         text = self.lower_all(text)
         n_punct = self.get_punc_count(text)
@@ -124,7 +127,11 @@ class Preprocess:
         text = self.remove_urls(text)
         embedding = self.embed_text(text)
         signal.extend(embedding)
+        if add_punct:
+            signal.append(n_punct)
+            signal.append(n_punct_in_a_row)
 
+        return signal
 
     def run(self, validation=True) -> None:
         """
@@ -162,8 +169,9 @@ class Preprocess:
 if __name__ == '__main__':
     cm = ConfigManager('preprocessing').config
     preprocessing = Preprocess()
-    preprocessing.run()
-
+    # preprocessing.run()
+    signal = preprocessing.run_single_text(text="May I have your attention please?")
+    print(signal)
 
 
 

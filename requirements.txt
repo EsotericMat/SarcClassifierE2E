@@ -1,0 +1,15 @@
+pandas
+numpy
+matplotlib
+seaborn
+spacy
+scikit-learn
+transformers
+textblob
+PyYAML
+loguru
+optuna
+xgboost
+mlflow
+pandera
+sentence-transformers

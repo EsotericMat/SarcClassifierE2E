@@ -1,0 +1,7 @@
+venv/
+mlruns/
+.idea/
+__pycache__/
+*.ubj
+processed_data/
+

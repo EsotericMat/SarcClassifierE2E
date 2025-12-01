@@ -36,7 +36,9 @@ app:
   step_name: application
   title: Sarcasm Classifier API
   version: 1.0
-  model_file: ../models/sarcClassifier.ubj
+  threshold: 0.65
+  model_file: models/sarcClassifier.ubj
+  subclass_model_file: models/sarcSubClassClassifier.ubj
 
 
 

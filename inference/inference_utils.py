@@ -11,11 +11,11 @@ def load_model(model_path: str):
     return bst
 
 
-def predict_with_model(model: Any, features: List):
+def predict_with_model(model: Any, features: List, threshold: float = 0.5):
     features_names = model.feature_names
     dmatrix = xgb.DMatrix(np.array([features], dtype=float), feature_names=features_names)
     pred = model.predict(dmatrix)
-    if pred > .5:
+    if pred >= threshold:
         result = 1
     else:
         result = 0

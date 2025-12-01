@@ -5,13 +5,17 @@ from pathlib import Path
 class ConfigManager:
     def __init__(self, pipe):
         self.pipe = pipe
+        project_root = Path(__file__).resolve().parent.parent
+        config_path = project_root / 'configurations.yaml'
+
         try:
-            config_path = Path('configurations.yaml')
             self.config_dict = read_yaml(config_path)
-        except:
-            config_path = Path('../configurations.yaml')
-            self.config_dict = read_yaml(config_path)
-            print('running from module')
+        except FileNotFoundError:
+            raise FileNotFoundError(
+                f"Configuration file not found at {config_path}. "
+                f"Please ensure 'configurations.yaml' exists in the project root."
+            )
+
         self.params = self.config_dict[self.pipe]
         self.name = self.params['step_name']
         self.config = self.make_config_class()

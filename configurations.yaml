@@ -32,6 +32,14 @@ model-training:
   sarc_type_saved_model_file: sarcSubClassClassifier.ubj
 
 
+app:
+  step_name: application
+  title: Sarcasm Classifier API
+  version: 1.0
+  model_file: ../models/sarcClassifier.ubj
+
+
+
 
 
 

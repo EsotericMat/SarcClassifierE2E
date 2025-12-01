@@ -8,9 +8,12 @@ transformers
 textblob
 PyYAML
 loguru
+fastapi
 optuna
 xgboost
 mlflow
 pandera
 sentence-transformers
 dagshub
+uvicorn
+pydantic

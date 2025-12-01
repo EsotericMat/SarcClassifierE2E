@@ -170,7 +170,7 @@ if __name__ == '__main__':
     cm = ConfigManager('preprocessing').config
     preprocessing = Preprocess()
     # preprocessing.run()
-    signal = preprocessing.run_single_text(text="May I have your attention please?")
+    signal = preprocessing.run_single_text(text="Then why can't you explain an unreflective fertility and abortion rates between 1972-1979 here in America or how the Polish fertility rate never increased after the 1993 referendum that criminalized abortion?   Prove to me when criminalizing abortion has ever decreased it's demand. So far you haven'tonly provided empty rhetoric. The pro-life movement thoroughly brainwashes it's supporters to believe such jibberish.")
     print(signal)
 
 

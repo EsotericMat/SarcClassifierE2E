@@ -49,7 +49,7 @@ def predict(req: PredictRequest):
         raise HTTPException(status_code=503, detail='Model not found') # Service Unavailable
 
     try:
-        signal = processor.run_single_text(req.text, add_punct=False)
+        signal = processor.run_single_text(req.text[:120], add_punct=False)
     except Exception as e:
         raise HTTPException(status_code=400, detail=f'Preprocess Failed: {e}') # Bad Request
 

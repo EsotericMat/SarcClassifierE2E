@@ -4,13 +4,14 @@ import re
 import string
 import pandas as pd
 import numpy as np
-from pathlib import Path
-from typing import List, Tuple
+import logging
 from sarcasm_classifier.utils.tools import connect_data_dirs, validate_path
 from pandera.pandas import Column, DataFrameSchema, Check
 from sklearn.model_selection import train_test_split
 from configs.manager import ConfigManager
 from sentence_transformers import SentenceTransformer
+
+logger = logging.getLogger(__name__)
 
 class Preprocess:
     """
@@ -21,6 +22,7 @@ class Preprocess:
     - feature engineering
     """
     def __init__(self):
+        logger.info('Initializing Preprocess')
         self.config = ConfigManager('preprocessing').config
         self.schema = ConfigManager('schema').config
         self.model_name = self.config.embedding_model
@@ -58,6 +60,7 @@ class Preprocess:
 
 
     def load_data(self) -> pd.DataFrame:
+        logger.info('Loading Raw data...')
         data_path = self.config.data_path
         gen_df = pd.read_csv(connect_data_dirs(data_path, self.config.gen_file))
         hyp_df = pd.read_csv(connect_data_dirs(data_path, self.config.hyp_file))
@@ -68,9 +71,11 @@ class Preprocess:
         unified = pd.concat([gen_df, hyp_df, rq_df], axis=0)
         unified.drop('id', axis=1, inplace=True)
         unified.rename(columns={'class': 'label'}, inplace=True)
+        logger.info('Unified data Ready')
         return unified
 
     def validate_schema(self, df: pd.DataFrame) -> pd.DataFrame:
+        logger.info('Validating schema...')
         schema = self.schema
         lambda_ = lambda s: s.str.len() > 0
         subclasses = schema.possibleSarcClasses.split(', ')
@@ -82,9 +87,10 @@ class Preprocess:
             }
         )
         try:
+            logger.info('Schema validated successfully')
             return validator.validate(df)
-        except Exception as e:
-            print(f'Validation error: {e}')
+        except ValueError as e:
+            logger.error(f'Schema Validation error: {e}')
 
 
     def split_data(self, whole_df: pd.DataFrame, validation: bool = True) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
@@ -106,20 +112,22 @@ class Preprocess:
         # return np.array(embedding["embeddings"])[0]
 
     def embedding_to_columns(self, dataframe: pd.DataFrame) -> pd.DataFrame:
-        print(f'Embedding Text using {self.model_name}')
+        logger.info(f'Start Text Embedding process using {self.model_name}')
         dataframe['embedding'] = dataframe.text.apply(self.embed_text)
         features = [f'feat{i}' for i in range(1, 769)]
         embedding_df = pd.DataFrame(dataframe['embedding'].tolist(), columns=features, index=dataframe.index)
         dataframe = pd.concat([dataframe, embedding_df], axis=1)
         dataframe.drop('embedding', axis=1, inplace=True)
+        logger.info('Text Embedding process completed')
         return dataframe
 
-    def run_single_text(self, text, add_punct: bool = True):
+    def run_single_text(self, text):
 
         if not isinstance(text, str):
             raise ValueError("Input must be a string")
 
         signal = []
+        text = text[:self.config.max_txt_length]
         text = self.lower_all(text)
         n_punct = self.get_punc_count(text)
         n_punct_in_a_row = self.get_repeated_puncs(text)
@@ -127,7 +135,7 @@ class Preprocess:
         text = self.remove_urls(text)
         embedding = self.embed_text(text)
         signal.extend(embedding)
-        if add_punct:
+        if self.config.add_punct_features:
             signal.append(n_punct)
             signal.append(n_punct_in_a_row)
 
@@ -145,6 +153,7 @@ class Preprocess:
         assert isinstance(sarcasm_df, pd.DataFrame), 'Something wrong with sarcasm df'
 
         # Text preprocessing
+        logger.info(f'Start Text Preprocessing')
         sarcasm_df['text'] = sarcasm_df['text'].apply(self.lower_all)
         sarcasm_df['punctuations'] = sarcasm_df['text'].apply(self.get_punc_count)
         sarcasm_df['repeated_punctuations'] = sarcasm_df['text'].apply(self.get_repeated_puncs)
@@ -163,7 +172,7 @@ class Preprocess:
         sarcasm_train.to_csv(connect_data_dirs(output_dir, 'train.csv'), index=False, header=True)
         sarcasm_val.to_csv(connect_data_dirs(output_dir, 'validation.csv'), index=False, header=True)
         sarcasm_test.to_csv(connect_data_dirs(output_dir, 'test.csv'), index=False, header=True)
-        print(f'Datasets stored in {output_dir.absolute()}')
+        logger.info(f'Datasets stored in {output_dir.absolute()}')
 
 
 if __name__ == '__main__':

@@ -7,15 +7,20 @@ from datetime import datetime
 from typing import Tuple
 import optuna
 import dagshub
-from pathlib import Path
+import logging
 from xgboost import XGBClassifier
 from configs.manager import ConfigManager
-from sklearn.metrics import accuracy_score, f1_score, confusion_matrix
+from sklearn.metrics import accuracy_score, f1_score, confusion_matrix, precision_score
 from sarcasm_classifier.utils.tools import connect_data_dirs, validate_path
+
+logger= logging.getLogger(__name__)
+logging.getLogger("dagshub").setLevel(logging.ERROR)
+logging.getLogger("mlflow").setLevel(logging.ERROR)
 
 class Trainer:
 
     def __init__(self):
+        logger.info('Initialize Model Trainer')
         self.config = ConfigManager('model-training').config
 
     @staticmethod
@@ -49,7 +54,7 @@ class Trainer:
         to_drop = ['subClass', 'text', 'label']
 
         if target == 'subclass':
-            print('Target is Sarcasm subclass, Trimming datasets')
+            logger.info('Target is Sarcasm subclass, Trimming datasets')
             train_set, test_set, validation_set = self.prepare_subclass_dataset(
                 train_set,
                 test_set,
@@ -128,6 +133,12 @@ class Trainer:
             f.write(full_text)
 
         return file_path
+
+    def score_model(self, truth, predictions):
+        score = f1_score(truth, predictions)
+        accuracy = accuracy_score(truth, predictions)
+        precision = precision_score(truth, predictions)
+        return score, accuracy, precision
 
 
     def tune_xgboost_with_optuna(self,
@@ -208,15 +219,13 @@ class Trainer:
                 # Use F1-score for optimization (macro average for multiclass)
                 cm_file_path = self.config.confusion_matrix_artifact_file
                 if num_classes > 2:
-                    score = f1_score(y_val_target, y_pred, average='macro')
-                    accuracy = accuracy_score(y_val_target, y_pred)
+                    score, accuracy, precision = self.score_model(y_val_target, y_pred)
                     cm_file_path = self.generate_confusion_matrix_artifact(y_val_target,
                                                                            y_pred,
                                                                            labels=[0,1,2],
                                                                            file_path=cm_file_path)
                 else:
-                    score = f1_score(y_val_target, y_pred)
-                    accuracy = accuracy_score(y_val_target, y_pred)
+                    score, accuracy, precision = self.score_model(y_val_target, y_pred)
                     cm_file_path = self.generate_confusion_matrix_artifact(y_val_target,
                                                                            y_pred,
                                                                            labels=[0, 1],
@@ -225,9 +234,14 @@ class Trainer:
                 mlflow.log_params(params)
                 mlflow.log_metric('Accuracy', accuracy)
                 mlflow.log_metric('F1', score)
+                mlflow.log_metric('Precision', precision)
                 mlflow.log_artifact(cm_file_path)
 
+
+                logger.info(f"Epoch {trial.number + 1} | ValAccuracy {accuracy} | ValPrecision: {precision}", extra={'params':params})
+
                 return score
+
 
         # Create study and optimize
         study = optuna.create_study(direction='maximize',
@@ -295,27 +309,35 @@ class Trainer:
 
         model_path = connect_data_dirs(self.config.models_path, model_path)
         model.save_model(model_path)
-        print(f'Model Saved in {model_path}')
+        logger.info(f'Model Saved in {model_path}')
         return None
 
     def run(self, target: str = 'sarcasm'):
-
-        dagshub.init(repo_owner='matanst7', repo_name='SarcClassifierE2E', mlflow=True)
+        try:
+            logger.info('Connecting to Dagshub')
+            dagshub.init(repo_owner='matanst7', repo_name='SarcClassifierE2E', mlflow=True)
+        except ConnectionError as e:
+            logger.warning(f"Failed to connect to Dagshub: {e}")
+            logger.info('Keep tracking using Local MLFlow')
+            mlflow.set_tracking_uri("file:./mlruns")
 
         validate_path(self.config.artifacts_dir)
 
         # Load
+        logger.info('Loading datasets')
         train, test, validation = self.load_train(
             val=self.config.validation,
             keep_only_embeddings=self.config.keep_punctuation_features
         )
 
         # Encode labels
+        logger.info('Label Encoding')
         train = self.label_encode(df=train, target_col='label', subclass_col='subClass')
         test = self.label_encode(df=test, target_col='label', subclass_col='subClass')
         validation = self.label_encode(df=validation, target_col='label', subclass_col='subClass')
 
         # Prepare training sets:
+        logger.info('Preparing training sets')
         train_set, test_set, validation_set = self.prepare_training_sets(
             train_set=train,
             test_set=test,
@@ -325,6 +347,7 @@ class Trainer:
 
         # Train a Model Using Optuna - Validation
         mlflow.set_experiment(f"Sarcasm : {target} Classifier_{datetime.now().strftime('%Y%m%d-%H')}")
+        logger.info('Training a new XGBoost Model Using Optuna for Hyperparameters tuning')
         sarcasm_results = self.tune_xgboost_with_optuna(
             training_object=(train_set, test_set, validation_set),
             target_type=target,
@@ -335,44 +358,18 @@ class Trainer:
         best_model = sarcasm_results['model']
 
         # Results:
-        print(f"\nSarcasm Classification Results:")
-        print(f"Best F1 Score: {sarcasm_results['best_f1_score']:.4f}")
-        print(f"Validation Accuracy: {sarcasm_results['validation_accuracy']:.4f}")
-        print(f"Validation F1: {sarcasm_results['validation_f1']:.4f}")
-        print(f"Best Parameters: {sarcasm_results['best_params']}")
+        logger.info(f"""Training Completed\nSarcasm Classification Results:
+        - Best F1 Score: {sarcasm_results['best_f1_score']:.4f}
+        - Validation Accuracy: {sarcasm_results['validation_accuracy']:.4f})
+        - Validation F1: {sarcasm_results['validation_f1']:.4f})
+        - Best Parameters: {sarcasm_results['best_params']}""")
 
         self.save_model(best_model, target)
 
-
-
 if __name__ == '__main__':
-    def generate_confusion_matrix_artifact(truth, predictions, file_path, labels=None):
+    trainer = Trainer()
+    trainer.run(target='sarcasm')
 
-        cm = confusion_matrix(truth, predictions, labels=labels)
-
-        header = "Confusion Matrix Report\n"
-        header += f"Generated: {datetime.now()}\n"
-        header += "-" * 50 + "\n"
-        matrix_text = "Predicted →\t" + "\t".join(str(l) for l in labels) + "\n"
-
-        # Matrix rows
-        for i, label in enumerate(labels):
-            row_values = "\t".join(str(v) for v in cm[i])
-            matrix_text += f"Actual {label}\t{row_values}\n"
-
-        full_text = header + matrix_text
-
-        with open(file_path, "w") as f:
-            f.write(full_text)
-
-        return file_path
-    path = generate_confusion_matrix_artifact(
-        [1,2,1,1,1,2],
-        [1,2,1,1,2,2],
-        file_path="confusion_matrix_report.txt"
-    )
-    print('Done!')
-    print(path)
 
 
 

@@ -113,7 +113,10 @@ class Trainer:
             raise FileExistsError("Preprocessed files are not avilable")
 
     @staticmethod
-    def generate_confusion_matrix_artifact(truth, predictions, file_path, labels=None, ):
+    def generate_confusion_matrix_artifact(truth, predictions, file_path, labels=None):
+
+        if not labels:
+            labels = [1, 0]
 
         cm = confusion_matrix(truth, predictions, labels=labels)
 
@@ -128,8 +131,8 @@ class Trainer:
             matrix_text += f"Actual {label}\t{row_values}\n"
 
         full_text = header + matrix_text
-
-        with open(file_path, "w") as f:
+        # os.makedirs(os.path.dirname(file_path), exist_ok=True)
+        with open(file_path, "a") as f:
             f.write(full_text)
 
         return file_path

@@ -1,13 +1,15 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends
 import uvicorn
-from typing import Optional
+from typing import Optional, Any
 import os
 import numpy as np
 from pydantic import BaseModel, Field
 from configs.manager import ConfigManager
 from .inference_utils import load_model, predict_with_model, map_result
 from sarcasm_classifier.components.preprocess import Preprocess
-from contextlib import asynccontextmanager
+import logging
+
+logger = logging.getLogger(__name__)
 
 class PredictRequest(BaseModel):
     text: str = Field(
@@ -23,42 +25,33 @@ class PredictResponse(BaseModel):
 
 config = ConfigManager('app').config
 
-processor = None
-model = None
-subclass_model = None
+def get_sarcasm_model():
+    return load_model(config.model_file)
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    print('Loading Assets')
-    global processor, model, subclass_model
-    processor = Preprocess()
-    try:
-        model = load_model(config.model_file)
-        subclass_model = load_model(config.subclass_model_file)
-    except Exception as e:
-        print(f'Cant load model: {e}')
-    print('Service is Ready')
-    yield
+def get_subclass_model():
+    return load_model(config.subclass_model_file)
 
-app = FastAPI(title=config.title,  version=config.version, lifespan=lifespan)
+def get_processor():
+    return Preprocess()
+
+app = FastAPI(title=config.title,  version=config.version)
 
 @app.get('/health')
 def health():
-    return {'status': 'ok', 'model_loaded': model is not None}
+    return {'status': 'ok'}
 
 @app.post('/predict_sarc', response_model=PredictResponse)
-def predict_sarc(req: PredictRequest):
-    if model is None:
-        raise HTTPException(status_code=503, detail='Model not found') # Service Unavailable
-
+def predict_sarc(req: PredictRequest, model: Any = Depends(get_sarcasm_model), processor: Any = Depends(get_processor)):
     try:
-        signal = processor.run_single_text(req.text[:120], add_punct=False)
-    except Exception as e:
+        signal = processor.run_single_text(req.text)
+    except ValueError as e:
+        logger.info(f'Preprocess Failed: {e}')
         raise HTTPException(status_code=400, detail=f'Preprocess Failed: {e}') # Bad Request
 
     try:
         prediction, proba = predict_with_model(model, signal, threshold=config.threshold)
-    except Exception as e:
+    except RuntimeError as e:
+        logger.error(f'Predict Failed: {e}', exc_info=True)
         raise HTTPException(status_code=500, detail=f'Prediction Failed: {e}')
 
     return PredictResponse(
@@ -68,18 +61,17 @@ def predict_sarc(req: PredictRequest):
     )
 
 @app.post('/predict_sarc_subclass', response_model=PredictResponse)
-def predict_sarc_subclass(req: PredictRequest):
-    if model is None:
-        raise HTTPException(status_code=503, detail='Model not found') # Service Unavailable
-
+def predict_sarc_subclass(req: PredictRequest, model: Any = Depends(get_subclass_model), processor: Any = Depends(get_processor)):
     try:
-        signal = processor.run_single_text(req.text[:120], add_punct=False)
-    except Exception as e:
+        signal = processor.run_single_text(req.text)
+    except ValueError as e:
+        logger.info(f'Predict Failed: {e}')
         raise HTTPException(status_code=400, detail=f'Preprocess Failed: {e}') # Bad Request
 
     try:
-        prediction, proba = predict_with_model(subclass_model, signal)
-    except Exception as e:
+        prediction, proba = predict_with_model(model, signal)
+    except RuntimeError as e:
+        logger.error(f'Predict Failed: {e}', exc_info=True)
         raise HTTPException(status_code=500, detail=f'Prediction Failed: {e}')
 
     return PredictResponse(

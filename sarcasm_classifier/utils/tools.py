@@ -22,5 +22,5 @@ def validate_path(base: Path) -> Path:
     return output_dir
 
 def connect_data_dirs(base: Path, file: Path) -> Path:
-    return os.path.join(base, file)
+    return Path(os.path.join(base, file))
 

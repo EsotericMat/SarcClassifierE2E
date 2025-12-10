@@ -2,7 +2,7 @@ import os
 import pytest
 import pandas as pd
 import numpy as np
-from pathlib import Path
+from pathlib import Path, PosixPath
 from unittest.mock import Mock
 from xgboost import XGBClassifier
 from sarcasm_classifier.components.train import Trainer
@@ -188,16 +188,17 @@ class TestTrainer:
         assert b.shape == (2, 4)
         assert c.shape == (0, 0)
 
-def test_generate_confusion_matrix_artifact(get_trainer, get_true_and_prediction):
-    get_trainer.config = MockConfig()
+def test_generate_confusion_matrix_artifact(get_trainer, tmp_path, get_true_and_prediction):
+    d = tmp_path
+    p = d / "cmTest.txt"
     truth, prediction = get_true_and_prediction
     cm = get_trainer.generate_confusion_matrix_artifact(
             truth,
             prediction,
-            get_trainer.config.confusion_matrix_artifact_file
+            p
         )
-    assert type(cm) == str
-    assert os.path.isfile(get_trainer.config.confusion_matrix_artifact_file)
+    assert type(cm) == PosixPath
+    assert os.path.isfile(p)
 
 
 def test_score_model(get_trainer, get_true_and_prediction):

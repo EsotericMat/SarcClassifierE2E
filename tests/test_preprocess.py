@@ -1,8 +1,10 @@
 import numpy as np
 import pytest
+import random
 import pandas as pd
 import math
 from unittest.mock import Mock
+from sentence_transformers import SentenceTransformer
 from sarcasm_classifier.components.preprocess import Preprocess
 
 @pytest.fixture
@@ -39,8 +41,14 @@ def get_expected_df():
     })
     return expected_mock_df
 
+@pytest.fixture
 def get_embedding_vector():
     return np.random.rand(768)
+
+class MockSentenceTransformer:
+
+    def encode(self, txt, convert_to_numpy=True, **kwargs):
+        return get_embedding_vector()
 
 
 class TestPreprocess:
@@ -109,13 +117,14 @@ class TestPreprocess:
 
     def test_embed_model(self, get_preprocess, monkeypatch):
         get_preprocess.config = MockConfig()
-        monkeypatch.setattr('sentence_transformers.SentenceTransformer.encode',  get_embedding_vector)
+        monkeypatch.setattr('sentence_transformers.SentenceTransformer', MockSentenceTransformer)
         embedding = get_preprocess.embed_text("test")
         assert len(embedding) == 768
         assert isinstance(embedding, (list, np.ndarray))
 
     def test_embedding_to_columns(self, get_preprocess, get_expected_df):
         df = get_expected_df
+        # mock_transformer = MockSentenceTransformer()
         df['embedding'] = get_embedding_vector
         df = get_preprocess.embedding_to_columns(df)
         assert df.shape[1] == get_expected_df.shape[1] + 767

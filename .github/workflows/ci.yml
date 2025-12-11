@@ -37,7 +37,7 @@ jobs:
 
   push_to_registry:
     if: github.event_name == 'push'
-    needs: built-and-test
+    needs: build-and-test
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository

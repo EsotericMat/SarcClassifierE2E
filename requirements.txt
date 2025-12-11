@@ -5,6 +5,7 @@ seaborn
 spacy
 scikit-learn
 transformers
+python-json-logger
 textblob
 PyYAML
 loguru

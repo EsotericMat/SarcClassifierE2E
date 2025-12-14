@@ -13,7 +13,7 @@ def mock_sarcasm_model():
     return model
 
 
-@pytest.fixture  
+@pytest.fixture
 def mock_not_sarcasm_model():
     model = Mock()
     model.feature_names = ['feature1', 'feature2', 'feature3']
@@ -25,7 +25,7 @@ def mock_not_sarcasm_model():
 def mock_subclass_model():
     model = Mock()
     model.feature_names = ['feature1', 'feature2', 'feature3']
-    model.predict.return_value = np.array([0.8])  # sarcastic
+    model.predict.return_value = np.array([0.8])  # class 1
     return model
 
 
@@ -33,7 +33,7 @@ def mock_subclass_model():
 def mock_not_subclass_model():
     model = Mock()
     model.feature_names = ['feature1', 'feature2', 'feature3']
-    model.predict.return_value = np.array([0.3])  # not sarcastic
+    model.predict.return_value = np.array([0.3])  # class 0
     return model
 
 
@@ -73,6 +73,7 @@ class TestHealthEndpoint:
 
 class TestPredictSarcEndpoint:
     def test_predict_sarc_success(self, client, mock_sarcasm_model, mock_processor, monkeypatch):
+
         app.dependency_overrides[get_sarcasm_model] = lambda: mock_sarcasm_model
         app.dependency_overrides[get_processor] = lambda: mock_processor
 
@@ -100,6 +101,7 @@ class TestPredictSarcEndpoint:
             app.dependency_overrides.clear()
 
     def test_predict_sarc_preprocess_error(self, client, mock_sarcasm_model, mock_error_processor):
+
         app.dependency_overrides[get_sarcasm_model] = lambda: mock_sarcasm_model
         app.dependency_overrides[get_processor] = lambda: mock_error_processor
         
@@ -123,11 +125,18 @@ class TestPredictSarcEndpoint:
         finally:
             app.dependency_overrides.clear()
 
-    def test_predict_sarc_invalid_request(self, client):
+
+    def test_predict_sarc_invalid_request(self, client, mock_sarcasm_model, mock_processor):
+
+        app.dependency_overrides[get_sarcasm_model] = lambda: mock_not_sarcasm_model
+        app.dependency_overrides[get_processor] = lambda: mock_processor
+
         response = client.post("/predict_sarc", json={})
         assert response.status_code == 422
 
-    def test_predict_sarc_empty_text(self, client):
+    def test_predict_sarc_empty_text(self, client, mock_sarcasm_model, mock_processor):
+        app.dependency_overrides[get_sarcasm_model] = lambda: mock_sarcasm_model
+        app.dependency_overrides[get_processor] = lambda: mock_processor
         response = client.post("/predict_sarc", json={"text": ""})
         assert response.status_code == 422
 
@@ -188,10 +197,14 @@ class TestPredictSarcSubclassEndpoint:
             app.dependency_overrides.clear()
 
     def test_predict_sarc_subclass_invalid_request(self, client):
+        app.dependency_overrides[get_subclass_model] = lambda: mock_not_sarcasm_model
+        app.dependency_overrides[get_processor] = lambda: mock_processor
         response = client.post("/predict_sarc_subclass", json={})
         assert response.status_code == 422
 
     def test_predict_sarc_subclass_empty_text(self, client):
+        app.dependency_overrides[get_subclass_model] = lambda: mock_subclass_model
+        app.dependency_overrides[get_processor] = lambda: mock_processor
         response = client.post("/predict_sarc_subclass", json={"text": ""})
         assert response.status_code == 422
 
